@@ -13,7 +13,7 @@ export class ReviewSession {
 
   constructor(baseRef: string, files: FileComments[] = []) {
     this.baseRef = baseRef;
-    this.files = new Map(files.map((f) => [f.path, f.comments]));
+    this.files = new Map(files.map((f) => [f.path, [...f.comments]]));
   }
 
   addComment(path: string, c: ReviewComment): void {
@@ -24,7 +24,10 @@ export class ReviewSession {
 
   removeComment(path: string, id: string): void {
     const list = this.files.get(path);
-    if (list) this.files.set(path, list.filter((c) => c.id !== id));
+    if (!list) return;
+    const updated = list.filter((c) => c.id !== id);
+    if (updated.length > 0) this.files.set(path, updated);
+    else this.files.delete(path);
   }
 
   commentCount(path: string): number {
@@ -39,7 +42,7 @@ export class ReviewSession {
 
   toPersisted(): PersistedSession {
     const files: FileComments[] = [];
-    for (const [path, comments] of this.files) files.push({ path, comments });
+    for (const [path, comments] of this.files) files.push({ path, comments: [...comments] });
     return { baseRef: this.baseRef, files };
   }
 

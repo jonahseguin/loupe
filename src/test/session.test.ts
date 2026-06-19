@@ -44,4 +44,11 @@ suite('ReviewSession', () => {
     await ReviewSession.clear(m);
     assert.strictEqual(ReviewSession.load(m), undefined);
   });
+
+  test('removing the last comment drops the file from the persisted payload', () => {
+    const s = new ReviewSession('HEAD');
+    s.addComment('a.ts', { id: '1', body: 'x', startLine: 1, endLine: 1 });
+    s.removeComment('a.ts', '1');
+    assert.strictEqual(s.toPersisted().files.length, 0);
+  });
 });
