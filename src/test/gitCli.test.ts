@@ -9,8 +9,11 @@ function git(cwd: string, ...args: string[]): void {
   execFileSync('git', args, { cwd });
 }
 
+const createdDirs: string[] = [];
+
 function tempRepo(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'loupe-git-'));
+  createdDirs.push(dir);
   git(dir, 'init', '-q');
   git(dir, 'config', 'user.email', 'test@test.com');
   git(dir, 'config', 'user.name', 'Test');
@@ -18,6 +21,12 @@ function tempRepo(): string {
 }
 
 suite('gitCli', () => {
+  teardown(() => {
+    for (const d of createdDirs.splice(0)) {
+      try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  });
+
   test('repoRoot resolves the repository root', async () => {
     const dir = tempRepo();
     const sub = path.join(dir, 'a', 'b');
@@ -51,6 +60,7 @@ suite('gitCli', () => {
 
   test('resolveDefaultBranch returns the local default branch when no remote is set', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'loupe-git-'));
+    createdDirs.push(dir);
     git(dir, 'init', '-q', '-b', 'main');
     git(dir, 'config', 'user.email', 'test@test.com');
     git(dir, 'config', 'user.name', 'Test');
@@ -62,6 +72,7 @@ suite('gitCli', () => {
 
   test('resolveDefaultBranch falls back to HEAD when no branch ref exists', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'loupe-git-'));
+    createdDirs.push(dir);
     git(dir, 'init', '-q', '-b', 'main');
     assert.strictEqual(await resolveDefaultBranch(dir), 'HEAD');
   });
@@ -73,5 +84,13 @@ suite('gitCli', () => {
     git(dir, 'commit', '-q', '-m', 'c1');
     const base = (execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir }) + '').trim();
     assert.strictEqual(await mergeBase(dir, 'HEAD', 'HEAD'), base);
+  });
+
+  test('showFile rejects on an invalid ref rather than returning empty', async () => {
+    const dir = tempRepo();
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'x\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-q', '-m', 'init');
+    await assert.rejects(() => showFile(dir, 'definitely-not-a-ref', 'a.txt'));
   });
 });

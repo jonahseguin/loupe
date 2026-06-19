@@ -52,12 +52,26 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!thread) return;
       thread.comments = thread.comments.filter((c) => (c as LoupeComment).id !== comment.id);
       controller.removeComment(thread.uri, comment.id);
-      if (thread.comments.length === 0) thread.dispose();
+      if (thread.comments.length === 0) {
+        controller.forgetThread(thread);
+        thread.dispose();
+      }
     }),
 
     changesTree,
     vscode.window.registerTreeDataProvider('loupe.changes', changesTree),
   );
+
+  void controller.restore().then((restored) => {
+    if (!restored) return;
+    for (const r of restored) {
+      const thread = commentCtrl.createCommentThread(r.uri, new vscode.Range(r.startLine - 1, 0, r.endLine - 1, 0), [
+        new LoupeComment(new vscode.MarkdownString(r.body), r.id),
+      ]);
+      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
+      controller.registerThread(thread);
+    }
+  });
 }
 
 export function deactivate(): void {}

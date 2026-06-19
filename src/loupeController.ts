@@ -5,6 +5,7 @@ import { ReviewSession } from './review/session';
 import { DiffOverlay } from './review/overlay';
 import { repoRoot, diffNameStatus, mergeBase, resolveDefaultBranch } from './git/gitCli';
 import { formatForClaude, FileForExport } from './export/claudeFormatter';
+import { ReviewComment } from './review/types';
 
 export class LoupeController implements vscode.Disposable {
   private session?: ReviewSession;
@@ -99,8 +100,55 @@ export class LoupeController implements vscode.Disposable {
     return pick.ref;
   }
 
+  /** Re-enter review mode from a persisted session, if one exists and the repo is available.
+   *  Returns the stored comments (with absolute file URIs) so the caller can recreate threads,
+   *  or undefined if there was nothing to restore. */
+  async restore(): Promise<Array<{ uri: vscode.Uri; startLine: number; endLine: number; body: string; id: string }> | undefined> {
+    const persisted = ReviewSession.load(this.ctx.workspaceState);
+    if (!persisted) return undefined;
+
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) return undefined;
+
+    let root: string;
+    try {
+      root = await repoRoot(folder.uri.fsPath);
+    } catch {
+      return undefined; // not a repo anymore; leave persisted state untouched
+    }
+
+    let files;
+    try {
+      files = await diffNameStatus(root, persisted.baseRef);
+    } catch {
+      return undefined; // stored baseRef no longer valid; best-effort, skip
+    }
+
+    this.root = root;
+    this.changedRel = files.map((f) => f.path);
+    this.changedAbs = new Set(files.filter((f) => f.status !== 'D').map((f) => path.join(root, f.path)));
+    this.session = persisted;
+    this.overlay = new DiffOverlay(persisted.baseRef, (uri) => this.isChanged(uri));
+    await vscode.commands.executeCommand('setContext', 'loupe.active', true);
+    this.updateStatus();
+    this.emitter.fire();
+
+    const out: Array<{ uri: vscode.Uri; startLine: number; endLine: number; body: string; id: string }> = [];
+    for (const [rel, comments] of this.session.files) {
+      const uri = vscode.Uri.file(path.join(root, rel));
+      for (const c of comments) {
+        out.push({ uri, startLine: c.startLine, endLine: c.endLine, body: c.body, id: c.id });
+      }
+    }
+    return out;
+  }
+
   registerThread(thread: vscode.CommentThread): void {
     this.threads.push(thread);
+  }
+
+  forgetThread(thread: vscode.CommentThread): void {
+    this.threads = this.threads.filter((t) => t !== thread);
   }
 
   addComment(uri: vscode.Uri, startLine: number, endLine: number, body: string, id: string): void {
@@ -130,23 +178,40 @@ export class LoupeController implements vscode.Disposable {
       vscode.window.showInformationMessage('Loupe: review mode is not active.');
       return;
     }
+
+    // Group live comments by repo-relative path, using each thread's CURRENT range.
+    const byPath = new Map<string, ReviewComment[]>();
+    for (const thread of this.threads) {
+      const range = thread.range;
+      if (!range || thread.comments.length === 0) continue;
+      const rel = path.relative(this.root, thread.uri.fsPath);
+      const startLine = range.start.line + 1;
+      const endLine = range.end.line + 1;
+      const list = byPath.get(rel) ?? [];
+      for (const c of thread.comments) {
+        const body = typeof c.body === 'string' ? c.body : c.body.value;
+        list.push({ id: '', body, startLine, endLine });
+      }
+      byPath.set(rel, list);
+    }
+
+    if (byPath.size === 0) {
+      vscode.window.showInformationMessage('Loupe: no comments to copy yet.');
+      return;
+    }
+
     const files: FileForExport[] = [];
-    for (const [rel, comments] of this.session.files) {
-      if (comments.length === 0) continue;
+    for (const [rel, comments] of byPath) {
       let content: string | undefined;
       try {
         content = await fs.readFile(path.join(this.root, rel), 'utf8');
       } catch { /* deleted/binary — export without snippet */ }
       files.push({ path: rel, comments, content });
     }
-    if (files.length === 0) {
-      vscode.window.showInformationMessage('Loupe: no comments to copy yet.');
-      return;
-    }
+
     await vscode.env.clipboard.writeText(formatForClaude(files));
-    vscode.window.showInformationMessage(
-      `Loupe: copied ${this.session.totalCount()} comment(s) for Claude.`,
-    );
+    const total = files.reduce((n, f) => n + f.comments.length, 0);
+    vscode.window.showInformationMessage(`Loupe: copied ${total} comment(s) for Claude.`);
   }
 
   private updateStatus(): void {

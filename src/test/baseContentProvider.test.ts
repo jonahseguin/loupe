@@ -6,8 +6,11 @@ import * as vscode from 'vscode';
 import { execFileSync } from 'node:child_process';
 import { BaseContentProvider, baseUriFor } from '../review/baseContentProvider';
 
+const createdDirs: string[] = [];
+
 function tempRepoWithCommit(): { dir: string; file: string } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'loupe-base-'));
+  createdDirs.push(dir);
   const git = (...a: string[]) => execFileSync('git', a, { cwd: dir });
   git('init', '-q');
   git('config', 'user.email', 'test@test.com');
@@ -21,6 +24,12 @@ function tempRepoWithCommit(): { dir: string; file: string } {
 }
 
 suite('BaseContentProvider', () => {
+  teardown(() => {
+    for (const d of createdDirs.splice(0)) {
+      try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  });
+
   test('returns the committed (base) content for a modified file', async () => {
     const { file } = tempRepoWithCommit();
     const provider = new BaseContentProvider();

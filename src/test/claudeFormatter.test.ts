@@ -33,4 +33,11 @@ suite('claudeFormatter', () => {
     ]);
     assert.ok(md.includes('## a.ts:1\n'));
   });
+
+  test('formatForClaude prefixes every line of a multi-line body', () => {
+    const md = formatForClaude([
+      { path: 'a.ts', content: 'x\n', comments: [{ id: '1', body: 'line one\nline two', startLine: 1, endLine: 1 }] },
+    ]);
+    assert.ok(md.includes('> line one\n> line two'));
+  });
 });
