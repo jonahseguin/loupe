@@ -14,7 +14,13 @@ export function baseUriFor(fileUri: vscode.Uri, baseRef: string): vscode.Uri {
 
 export class BaseContentProvider implements vscode.TextDocumentContentProvider {
   async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
-    const fsPath = fs.realpathSync(uri.with({ scheme: 'file', query: '' }).fsPath);
+    const rawPath = uri.with({ scheme: 'file', query: '' }).fsPath;
+    let fsPath: string;
+    try {
+      fsPath = fs.realpathSync(rawPath);
+    } catch {
+      fsPath = rawPath;
+    }
     const root = await repoRoot(path.dirname(fsPath));
     const rel = path.relative(root, fsPath);
     return showFile(root, uri.query, rel);
