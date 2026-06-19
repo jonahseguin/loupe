@@ -9,25 +9,25 @@
   "activationEvents": ["onStartupFinished"],
   "contributes": {
     "commands": [
-      { "command": "loupe.toggle", "title": "Toggle Review Mode", "category": "Loupe" },
-      { "command": "loupe.copyForClaude", "title": "Copy Comments for Claude", "category": "Loupe", "icon": "$(clippy)" },
+      { "command": "loupe.toggle", "title": "Toggle Review Mode (diff)", "category": "Loupe" },
+      { "command": "loupe.copyForClaude", "title": "Copy Comments", "category": "Loupe", "icon": "$(clippy)" },
       { "command": "loupe.createComment", "title": "Add Comment", "category": "Loupe" },
       { "command": "loupe.deleteComment", "title": "Delete Comment", "category": "Loupe", "icon": "$(trash)" },
-      { "command": "loupe.addCommentHere", "title": "Add Review Comment", "category": "Loupe", "icon": "$(comment-add)" }
+      { "command": "loupe.addCommentHere", "title": "Add Comment", "category": "Loupe", "icon": "$(comment-add)" },
+      { "command": "loupe.clearComments", "title": "Clear All Comments", "category": "Loupe", "icon": "$(clear-all)" }
     ],
     "keybindings": [
-      { "command": "loupe.copyForClaude", "key": "ctrl+alt+c", "mac": "cmd+alt+c", "when": "loupe.active" },
-      { "command": "loupe.addCommentHere", "key": "ctrl+alt+m", "mac": "cmd+alt+m", "when": "loupe.active && editorTextFocus" }
+      { "command": "loupe.copyForClaude", "key": "ctrl+alt+c", "mac": "cmd+alt+c", "when": "editorTextFocus" },
+      { "command": "loupe.addCommentHere", "key": "ctrl+alt+m", "mac": "cmd+alt+m", "when": "editorTextFocus" },
+      { "command": "loupe.toggle", "key": "ctrl+alt+r", "mac": "cmd+alt+r" }
     ],
     "menus": {
       "commandPalette": [
         { "command": "loupe.createComment", "when": "false" },
-        { "command": "loupe.deleteComment", "when": "false" },
-        { "command": "loupe.copyForClaude", "when": "loupe.active" },
-        { "command": "loupe.addCommentHere", "when": "loupe.active" }
+        { "command": "loupe.deleteComment", "when": "false" }
       ],
       "editor/context": [
-        { "command": "loupe.addCommentHere", "when": "loupe.active && editorTextFocus", "group": "1_modification@10" }
+        { "command": "loupe.addCommentHere", "when": "editorTextFocus", "group": "1_modification@10" }
       ],
       "comments/commentThread/context": [
         { "command": "loupe.createComment", "group": "inline", "when": "commentController == loupe" }
@@ -36,7 +36,8 @@
         { "command": "loupe.deleteComment", "group": "inline", "when": "commentController == loupe" }
       ],
       "view/title": [
-        { "command": "loupe.copyForClaude", "when": "view == loupe.changes", "group": "navigation" }
+        { "command": "loupe.copyForClaude", "when": "view == loupe.changes", "group": "navigation@1" },
+        { "command": "loupe.clearComments", "when": "view == loupe.changes", "group": "navigation@2" }
       ]
     },
     "viewsContainers": {
@@ -46,7 +47,7 @@
     },
     "views": {
       "loupe": [
-        { "id": "loupe.changes", "name": "Changed Files", "when": "loupe.active" }
+        { "id": "loupe.changes", "name": "Comments & Changes" }
       ]
     }
   },

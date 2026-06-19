@@ -3,19 +3,28 @@ import * as vscode from 'vscode';
 import { LoupeController } from '../loupeController';
 
 suite('LoupeController', () => {
-  test('starts inactive with empty changed files', () => {
+  test('review mode starts off with an empty changed-file set', () => {
     const status = vscode.window.createStatusBarItem();
     const controller = new LoupeController({ workspaceState: fakeState() } as any, status);
-    assert.strictEqual(controller.active, false);
+    assert.strictEqual(controller.reviewActive, false);
     assert.deepStrictEqual(controller.changedFiles, []);
     controller.dispose();
     status.dispose();
   });
 
-  test('copyForClaude on inactive session is a no-op (no throw)', async () => {
+  test('copyForClaude before init (no root) is a no-op (no throw)', async () => {
     const status = vscode.window.createStatusBarItem();
     const controller = new LoupeController({ workspaceState: fakeState() } as any, status);
     await controller.copyForClaude(); // should not throw
+    controller.dispose();
+    status.dispose();
+  });
+
+  test('clearAllComments before init does not throw', () => {
+    const status = vscode.window.createStatusBarItem();
+    const controller = new LoupeController({ workspaceState: fakeState() } as any, status);
+    controller.clearAllComments();
+    assert.strictEqual(controller.currentSession.totalCount(), 0);
     controller.dispose();
     status.dispose();
   });

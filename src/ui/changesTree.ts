@@ -17,7 +17,10 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<string>, vsc
   }
 
   getChildren(): string[] {
-    return this.controller.active ? this.controller.changedFiles : [];
+    // In review mode show the changed-file set; otherwise show files that have comments.
+    if (this.controller.reviewActive) return this.controller.changedFiles;
+    const session = this.controller.currentSession;
+    return [...session.files.keys()].filter((p) => session.commentCount(p) > 0);
   }
 
   getTreeItem(relPath: string): vscode.TreeItem {

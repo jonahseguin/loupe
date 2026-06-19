@@ -7,8 +7,15 @@ import { repoRoot, diffNameStatus, mergeBase, resolveDefaultBranch } from './git
 import { formatForClaude, FileForExport } from './export/claudeFormatter';
 import { ReviewComment } from './review/types';
 
+/**
+ * Two independent layers:
+ *  - Comments: a session that always exists. Comments can be added/removed/exported at any
+ *    time, regardless of review mode, and persist to workspaceState.
+ *  - Review mode: an optional diff overlay (gutter change bars) + the changed-file set.
+ *    Toggling review mode never touches comments.
+ */
 export class LoupeController implements vscode.Disposable {
-  private session?: ReviewSession;
+  private session: ReviewSession;
   private overlay?: DiffOverlay;
   private root?: string;
   private changedRel: string[] = [];
@@ -21,21 +28,49 @@ export class LoupeController implements vscode.Disposable {
     private readonly ctx: vscode.ExtensionContext,
     private readonly status: vscode.StatusBarItem,
   ) {
+    this.session = ReviewSession.load(ctx.workspaceState) ?? new ReviewSession('', []);
     this.updateStatus();
   }
 
-  get active(): boolean { return !!this.session; }
-  get currentSession(): ReviewSession | undefined { return this.session; }
+  /** Review mode (diff overlay) is on. */
+  get reviewActive(): boolean { return !!this.overlay; }
+  get currentSession(): ReviewSession { return this.session; }
   get changedFiles(): string[] { return this.changedRel; }
   get repoRootPath(): string | undefined { return this.root; }
   isChanged(uri: vscode.Uri): boolean { return this.changedAbs.has(uri.fsPath); }
 
-  async toggle(): Promise<void> {
-    if (this.active) await this.disable();
-    else await this.enable();
+  /** Resolve the repo (or workspace) root once at activation and return any persisted
+   *  comments so the caller can re-materialize their threads. Commenting needs the root
+   *  to compute repo-relative paths; it works in any folder, git or not. */
+  async init(): Promise<Array<{ uri: vscode.Uri; startLine: number; endLine: number; body: string; id: string }>> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (folder) {
+      try {
+        this.root = await repoRoot(folder.uri.fsPath);
+      } catch {
+        this.root = folder.uri.fsPath; // not a git repo — still allow commenting, paths relative to the folder
+      }
+    }
+    this.updateStatus();
+    this.emitter.fire();
+
+    const out: Array<{ uri: vscode.Uri; startLine: number; endLine: number; body: string; id: string }> = [];
+    if (!this.root) return out;
+    for (const [rel, comments] of this.session.files) {
+      const uri = vscode.Uri.file(path.join(this.root, rel));
+      for (const c of comments) {
+        out.push({ uri, startLine: c.startLine, endLine: c.endLine, body: c.body, id: c.id });
+      }
+    }
+    return out;
   }
 
-  private async enable(): Promise<void> {
+  async toggleReview(): Promise<void> {
+    if (this.reviewActive) this.disableReview();
+    else await this.enableReview();
+  }
+
+  private async enableReview(): Promise<void> {
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
       vscode.window.showErrorMessage('Loupe: open a folder first.');
@@ -54,7 +89,7 @@ export class LoupeController implements vscode.Disposable {
 
     const files = await diffNameStatus(root, baseRef);
     if (files.length === 0) {
-      vscode.window.showInformationMessage('Loupe: no changes to review.');
+      vscode.window.showInformationMessage('Loupe: no changes to review against that base.');
       return;
     }
 
@@ -63,34 +98,30 @@ export class LoupeController implements vscode.Disposable {
     this.changedAbs = new Set(
       files.filter((f) => f.status !== 'D').map((f) => path.join(root, f.path)),
     );
-    this.session = new ReviewSession(baseRef, []);
+    this.session.baseRef = baseRef;
+    void this.persist();
     this.overlay = new DiffOverlay(baseRef, (uri) => this.isChanged(uri));
-    await this.session.save(this.ctx.workspaceState);
     await vscode.commands.executeCommand('setContext', 'loupe.active', true);
     this.updateStatus();
     this.emitter.fire();
   }
 
-  private async disable(): Promise<void> {
+  private disableReview(): void {
     this.overlay?.dispose();
     this.overlay = undefined;
-    for (const t of this.threads) t.dispose();
-    this.threads = [];
-    this.session = undefined;
-    this.root = undefined;
     this.changedRel = [];
     this.changedAbs.clear();
-    await ReviewSession.clear(this.ctx.workspaceState);
-    await vscode.commands.executeCommand('setContext', 'loupe.active', false);
+    void vscode.commands.executeCommand('setContext', 'loupe.active', false);
     this.updateStatus();
     this.emitter.fire();
+    // Comments and their threads are intentionally left intact.
   }
 
   private async pickBaseRef(root: string): Promise<string | undefined> {
     const def = await resolveDefaultBranch(root);
     const items = [
-      { label: 'Uncommitted changes', detail: 'Review working-tree changes vs HEAD', ref: 'HEAD' },
-      { label: `Whole branch vs ${def}`, detail: `Everything since merge-base with ${def}`, ref: '__merge_base__' },
+      { label: `Whole branch vs ${def}`, detail: `Everything since merge-base with ${def} (committed + uncommitted)`, ref: '__merge_base__' },
+      { label: 'Uncommitted changes only', detail: 'Working-tree changes vs HEAD', ref: 'HEAD' },
     ];
     const pick = await vscode.window.showQuickPick(items, {
       placeHolder: 'Loupe: what do you want to review?',
@@ -98,50 +129,6 @@ export class LoupeController implements vscode.Disposable {
     if (!pick) return undefined;
     if (pick.ref === '__merge_base__') return mergeBase(root, 'HEAD', def);
     return pick.ref;
-  }
-
-  /** Re-enter review mode from a persisted session, if one exists and the repo is available.
-   *  Returns the stored comments (with absolute file URIs) so the caller can recreate threads,
-   *  or undefined if there was nothing to restore. */
-  async restore(): Promise<Array<{ uri: vscode.Uri; startLine: number; endLine: number; body: string; id: string }> | undefined> {
-    if (this.active) return undefined;
-    const persisted = ReviewSession.load(this.ctx.workspaceState);
-    if (!persisted) return undefined;
-
-    const folder = vscode.workspace.workspaceFolders?.[0];
-    if (!folder) return undefined;
-
-    let root: string;
-    try {
-      root = await repoRoot(folder.uri.fsPath);
-    } catch {
-      return undefined; // not a repo anymore; leave persisted state untouched
-    }
-
-    let files;
-    try {
-      files = await diffNameStatus(root, persisted.baseRef);
-    } catch {
-      return undefined; // stored baseRef no longer valid; best-effort, skip
-    }
-
-    this.root = root;
-    this.changedRel = files.map((f) => f.path);
-    this.changedAbs = new Set(files.filter((f) => f.status !== 'D').map((f) => path.join(root, f.path)));
-    this.session = persisted;
-    this.overlay = new DiffOverlay(persisted.baseRef, (uri) => this.isChanged(uri));
-    await vscode.commands.executeCommand('setContext', 'loupe.active', true);
-    this.updateStatus();
-    this.emitter.fire();
-
-    const out: Array<{ uri: vscode.Uri; startLine: number; endLine: number; body: string; id: string }> = [];
-    for (const [rel, comments] of this.session.files) {
-      const uri = vscode.Uri.file(path.join(root, rel));
-      for (const c of comments) {
-        out.push({ uri, startLine: c.startLine, endLine: c.endLine, body: c.body, id: c.id });
-      }
-    }
-    return out;
   }
 
   registerThread(thread: vscode.CommentThread): void {
@@ -153,30 +140,36 @@ export class LoupeController implements vscode.Disposable {
   }
 
   addComment(uri: vscode.Uri, startLine: number, endLine: number, body: string, id: string): void {
-    if (!this.session || !this.root) return;
+    if (!this.root) return;
     const rel = path.relative(this.root, uri.fsPath);
     this.session.addComment(rel, { id, body, startLine, endLine });
-    Promise.resolve(this.session.save(this.ctx.workspaceState)).catch((err: unknown) => {
-      console.error('Loupe: failed to persist comment:', err);
-    });
+    void this.persist();
     this.updateStatus();
     this.emitter.fire();
   }
 
   removeComment(uri: vscode.Uri, id: string): void {
-    if (!this.session || !this.root) return;
+    if (!this.root) return;
     const rel = path.relative(this.root, uri.fsPath);
     this.session.removeComment(rel, id);
-    Promise.resolve(this.session.save(this.ctx.workspaceState)).catch((err: unknown) => {
-      console.error('Loupe: failed to persist comment:', err);
-    });
+    void this.persist();
+    this.updateStatus();
+    this.emitter.fire();
+  }
+
+  /** Dispose every comment thread and drop all stored comments. */
+  clearAllComments(): void {
+    for (const t of this.threads) t.dispose();
+    this.threads = [];
+    this.session = new ReviewSession(this.session.baseRef, []);
+    void this.persist();
     this.updateStatus();
     this.emitter.fire();
   }
 
   async copyForClaude(): Promise<void> {
-    if (!this.session || !this.root) {
-      vscode.window.showInformationMessage('Loupe: review mode is not active.');
+    if (!this.root) {
+      vscode.window.showInformationMessage('Loupe: open a folder to use Loupe.');
       return;
     }
 
@@ -212,19 +205,20 @@ export class LoupeController implements vscode.Disposable {
 
     await vscode.env.clipboard.writeText(formatForClaude(files));
     const total = files.reduce((n, f) => n + f.comments.length, 0);
-    vscode.window.showInformationMessage(`Loupe: copied ${total} comment(s) for Claude.`);
+    vscode.window.showInformationMessage(`Loupe: copied ${total} comment(s) to the clipboard.`);
+  }
+
+  private persist(): Promise<void> {
+    return Promise.resolve(this.session.save(this.ctx.workspaceState)).catch((err: unknown) => {
+      console.error('Loupe: failed to persist comments:', err);
+    });
   }
 
   private updateStatus(): void {
-    if (this.active) {
-      this.status.text = `$(eye) Loupe: ${this.session!.totalCount()}`;
-      this.status.tooltip = 'Copy review comments for Claude';
-      this.status.command = 'loupe.copyForClaude';
-    } else {
-      this.status.text = '$(eye-closed) Loupe';
-      this.status.tooltip = 'Toggle Loupe review mode';
-      this.status.command = 'loupe.toggle';
-    }
+    const count = this.session.totalCount();
+    this.status.text = `${this.reviewActive ? '$(eye)' : '$(eye-closed)'} Loupe: ${count}`;
+    this.status.tooltip = `Loupe — ${count} comment(s). Click to copy for Claude.`;
+    this.status.command = 'loupe.copyForClaude';
     this.status.show();
   }
 

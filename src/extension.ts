@@ -19,10 +19,11 @@ export function activate(context: vscode.ExtensionContext): void {
   const controller = new LoupeController(context, status);
 
   const commentCtrl = vscode.comments.createCommentController('loupe', 'Loupe Review');
+  commentCtrl.options = { placeHolder: 'Add a comment', prompt: 'Add a comment' };
   commentCtrl.commentingRangeProvider = {
+    // Commenting is always available on real files, independent of review mode.
     provideCommentingRanges: (document) => {
-      if (!controller.active || document.uri.scheme !== 'file') return [];
-      if (!controller.isChanged(document.uri)) return [];
+      if (document.uri.scheme !== 'file') return [];
       return [new vscode.Range(0, 0, Math.max(0, document.lineCount - 1), 0)];
     },
   };
@@ -35,8 +36,21 @@ export function activate(context: vscode.ExtensionContext): void {
     commentCtrl,
     vscode.workspace.registerTextDocumentContentProvider(SCHEME, new BaseContentProvider()),
 
-    vscode.commands.registerCommand('loupe.toggle', () => controller.toggle()),
+    vscode.commands.registerCommand('loupe.toggle', () => controller.toggleReview()),
     vscode.commands.registerCommand('loupe.copyForClaude', () => controller.copyForClaude()),
+    vscode.commands.registerCommand('loupe.clearComments', async () => {
+      const count = controller.currentSession.totalCount();
+      if (count === 0) {
+        vscode.window.showInformationMessage('Loupe: there are no comments to clear.');
+        return;
+      }
+      const choice = await vscode.window.showWarningMessage(
+        `Clear all ${count} Loupe comment(s)? This cannot be undone.`,
+        { modal: true },
+        'Clear',
+      );
+      if (choice === 'Clear') controller.clearAllComments();
+    }),
 
     vscode.commands.registerCommand('loupe.createComment', (reply: vscode.CommentReply) => {
       const range = reply.thread.range;
@@ -52,7 +66,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.commands.registerCommand('loupe.addCommentHere', () => {
       const editor = vscode.window.activeTextEditor;
-      if (!controller.active || !editor) {
+      if (!editor) {
         return;
       }
       const sel = editor.selection;
@@ -77,8 +91,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerTreeDataProvider('loupe.changes', changesTree),
   );
 
-  void controller.restore().then((restored) => {
-    if (!restored) return;
+  void controller.init().then((restored) => {
     for (const r of restored) {
       const comment = new LoupeComment(new vscode.MarkdownString(r.body), r.id);
       const thread = commentCtrl.createCommentThread(
