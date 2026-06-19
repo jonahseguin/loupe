@@ -24,9 +24,12 @@ export function activate(context: vscode.ExtensionContext): void {
     // Commenting is always available on real files, independent of review mode.
     provideCommentingRanges: (document) => {
       if (document.uri.scheme !== 'file') return [];
-      return [new vscode.Range(0, 0, Math.max(0, document.lineCount - 1), 0)];
+      return [new vscode.Range(0, 0, document.lineCount, 0)];
     },
   };
+
+  // Tracks an empty thread opened via "Add Comment" so we can drop it if never submitted.
+  let pendingThread: vscode.CommentThread | undefined;
 
   const changesTree = new ChangesTreeProvider(controller);
 
@@ -52,16 +55,17 @@ export function activate(context: vscode.ExtensionContext): void {
       if (choice === 'Clear') controller.clearAllComments();
     }),
 
-    vscode.commands.registerCommand('loupe.createComment', (reply: vscode.CommentReply) => {
+    vscode.commands.registerCommand('loupe.createComment', async (reply: vscode.CommentReply) => {
       const range = reply.thread.range;
       if (!range) return;
       const id = newId();
       const thread = reply.thread;
+      if (thread === pendingThread) pendingThread = undefined; // it now has a comment
       const comment = new LoupeComment(new vscode.MarkdownString(reply.text), id);
       comment.parent = thread;
       thread.comments = [...thread.comments, comment];
       controller.registerThread(thread);
-      controller.addComment(thread.uri, range.start.line + 1, range.end.line + 1, reply.text, id);
+      await controller.addComment(thread.uri, range.start.line + 1, range.end.line + 1, reply.text, id);
     }),
 
     vscode.commands.registerCommand('loupe.addCommentHere', () => {
@@ -69,20 +73,24 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!editor) {
         return;
       }
+      // Drop a previous "Add Comment" box the user opened but never submitted.
+      if (pendingThread && pendingThread.comments.length === 0) pendingThread.dispose();
       const sel = editor.selection;
       const range = new vscode.Range(sel.start.line, 0, sel.end.line, 0);
       const thread = commentCtrl.createCommentThread(editor.document.uri, range, []);
       thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+      pendingThread = thread;
       // The thread is registered (and persisted) when the user submits via loupe.createComment.
     }),
 
-    vscode.commands.registerCommand('loupe.deleteComment', (comment: LoupeComment & { parent?: vscode.CommentThread }) => {
+    vscode.commands.registerCommand('loupe.deleteComment', async (comment: LoupeComment & { parent?: vscode.CommentThread }) => {
       const thread = comment.parent;
       if (!thread) return;
       thread.comments = thread.comments.filter((c) => (c as LoupeComment).id !== comment.id);
-      controller.removeComment(thread.uri, comment.id);
+      await controller.removeComment(thread.uri, comment.id);
       if (thread.comments.length === 0) {
         controller.forgetThread(thread);
+        if (thread === pendingThread) pendingThread = undefined;
         thread.dispose();
       }
     }),

@@ -25,7 +25,7 @@ export class ChangesTreeProvider implements vscode.TreeDataProvider<string>, vsc
 
   getTreeItem(relPath: string): vscode.TreeItem {
     const item = new vscode.TreeItem(relPath, vscode.TreeItemCollapsibleState.None);
-    const count = this.controller.currentSession?.commentCount(relPath) ?? 0;
+    const count = this.controller.currentSession.commentCount(relPath);
     if (count > 0) item.description = `${count} comment${count === 1 ? '' : 's'}`;
     const root = this.controller.repoRootPath;
     if (root) {

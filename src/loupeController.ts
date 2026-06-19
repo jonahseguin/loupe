@@ -42,15 +42,22 @@ export class LoupeController implements vscode.Disposable {
   /** Resolve the repo (or workspace) root once at activation and return any persisted
    *  comments so the caller can re-materialize their threads. Commenting needs the root
    *  to compute repo-relative paths; it works in any folder, git or not. */
-  async init(): Promise<Array<{ uri: vscode.Uri; startLine: number; endLine: number; body: string; id: string }>> {
+  /** Resolve and cache the repo (or workspace-folder) root used for repo-relative comment paths.
+   *  Commenting works in any folder, git or not. */
+  private async ensureRoot(): Promise<string | undefined> {
+    if (this.root) return this.root;
     const folder = vscode.workspace.workspaceFolders?.[0];
-    if (folder) {
-      try {
-        this.root = await repoRoot(folder.uri.fsPath);
-      } catch {
-        this.root = folder.uri.fsPath; // not a git repo — still allow commenting, paths relative to the folder
-      }
+    if (!folder) return undefined;
+    try {
+      this.root = await repoRoot(folder.uri.fsPath);
+    } catch {
+      this.root = folder.uri.fsPath; // not a git repo — still allow commenting
     }
+    return this.root;
+  }
+
+  async init(): Promise<Array<{ uri: vscode.Uri; startLine: number; endLine: number; body: string; id: string }>> {
+    await this.ensureRoot();
     this.updateStatus();
     this.emitter.fire();
 
@@ -101,7 +108,6 @@ export class LoupeController implements vscode.Disposable {
     this.session.baseRef = baseRef;
     void this.persist();
     this.overlay = new DiffOverlay(baseRef, (uri) => this.isChanged(uri));
-    await vscode.commands.executeCommand('setContext', 'loupe.active', true);
     this.updateStatus();
     this.emitter.fire();
   }
@@ -111,7 +117,6 @@ export class LoupeController implements vscode.Disposable {
     this.overlay = undefined;
     this.changedRel = [];
     this.changedAbs.clear();
-    void vscode.commands.executeCommand('setContext', 'loupe.active', false);
     this.updateStatus();
     this.emitter.fire();
     // Comments and their threads are intentionally left intact.
@@ -139,18 +144,20 @@ export class LoupeController implements vscode.Disposable {
     this.threads = this.threads.filter((t) => t !== thread);
   }
 
-  addComment(uri: vscode.Uri, startLine: number, endLine: number, body: string, id: string): void {
-    if (!this.root) return;
-    const rel = path.relative(this.root, uri.fsPath);
+  async addComment(uri: vscode.Uri, startLine: number, endLine: number, body: string, id: string): Promise<void> {
+    const root = await this.ensureRoot();
+    if (!root) return;
+    const rel = path.relative(root, uri.fsPath);
     this.session.addComment(rel, { id, body, startLine, endLine });
     void this.persist();
     this.updateStatus();
     this.emitter.fire();
   }
 
-  removeComment(uri: vscode.Uri, id: string): void {
-    if (!this.root) return;
-    const rel = path.relative(this.root, uri.fsPath);
+  async removeComment(uri: vscode.Uri, id: string): Promise<void> {
+    const root = await this.ensureRoot();
+    if (!root) return;
+    const rel = path.relative(root, uri.fsPath);
     this.session.removeComment(rel, id);
     void this.persist();
     this.updateStatus();
@@ -168,7 +175,8 @@ export class LoupeController implements vscode.Disposable {
   }
 
   async copyForClaude(): Promise<void> {
-    if (!this.root) {
+    const root = await this.ensureRoot();
+    if (!root) {
       vscode.window.showInformationMessage('Loupe: open a folder to use Loupe.');
       return;
     }
@@ -178,7 +186,7 @@ export class LoupeController implements vscode.Disposable {
     for (const thread of this.threads) {
       const range = thread.range;
       if (!range || thread.comments.length === 0) continue;
-      const rel = path.relative(this.root, thread.uri.fsPath);
+      const rel = path.relative(root, thread.uri.fsPath);
       const startLine = range.start.line + 1;
       const endLine = range.end.line + 1;
       const list = byPath.get(rel) ?? [];
@@ -198,7 +206,7 @@ export class LoupeController implements vscode.Disposable {
     for (const [rel, comments] of byPath) {
       let content: string | undefined;
       try {
-        content = await fs.readFile(path.join(this.root, rel), 'utf8');
+        content = await fs.readFile(path.join(root, rel), 'utf8');
       } catch { /* deleted/binary — export without snippet */ }
       files.push({ path: rel, comments, content });
     }
