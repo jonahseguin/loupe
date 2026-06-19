@@ -104,6 +104,7 @@ export class LoupeController implements vscode.Disposable {
    *  Returns the stored comments (with absolute file URIs) so the caller can recreate threads,
    *  or undefined if there was nothing to restore. */
   async restore(): Promise<Array<{ uri: vscode.Uri; startLine: number; endLine: number; body: string; id: string }> | undefined> {
+    if (this.active) return undefined;
     const persisted = ReviewSession.load(this.ctx.workspaceState);
     if (!persisted) return undefined;
 
@@ -144,7 +145,7 @@ export class LoupeController implements vscode.Disposable {
   }
 
   registerThread(thread: vscode.CommentThread): void {
-    this.threads.push(thread);
+    if (!this.threads.includes(thread)) this.threads.push(thread);
   }
 
   forgetThread(thread: vscode.CommentThread): void {
