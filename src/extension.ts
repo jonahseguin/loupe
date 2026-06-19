@@ -26,6 +26,8 @@ export function activate(context: vscode.ExtensionContext): void {
     },
   };
 
+  const changesTree = new ChangesTreeProvider(controller);
+
   context.subscriptions.push(
     status,
     controller,
@@ -53,7 +55,8 @@ export function activate(context: vscode.ExtensionContext): void {
       if (thread.comments.length === 0) thread.dispose();
     }),
 
-    vscode.window.registerTreeDataProvider('loupe.changes', new ChangesTreeProvider(controller)),
+    changesTree,
+    vscode.window.registerTreeDataProvider('loupe.changes', changesTree),
   );
 }
 

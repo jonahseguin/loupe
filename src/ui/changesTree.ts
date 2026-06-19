@@ -2,12 +2,18 @@ import * as vscode from 'vscode';
 import * as path from 'node:path';
 import { LoupeController } from '../loupeController';
 
-export class ChangesTreeProvider implements vscode.TreeDataProvider<string> {
+export class ChangesTreeProvider implements vscode.TreeDataProvider<string>, vscode.Disposable {
   private readonly emitter = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.emitter.event;
+  private readonly subscription: vscode.Disposable;
 
   constructor(private readonly controller: LoupeController) {
-    controller.onDidChange(() => this.emitter.fire());
+    this.subscription = controller.onDidChange(() => this.emitter.fire());
+  }
+
+  dispose(): void {
+    this.subscription.dispose();
+    this.emitter.dispose();
   }
 
   getChildren(): string[] {
