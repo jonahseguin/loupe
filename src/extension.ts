@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { LoupeController } from './loupeController';
 import { BaseContentProvider, SCHEME } from './review/baseContentProvider';
+import { ChangesTreeProvider } from './ui/changesTree';
 
 class LoupeComment implements vscode.Comment {
   mode = vscode.CommentMode.Preview;
@@ -51,6 +52,8 @@ export function activate(context: vscode.ExtensionContext): void {
       controller.removeComment(thread.uri, comment.id);
       if (thread.comments.length === 0) thread.dispose();
     }),
+
+    vscode.window.registerTreeDataProvider('loupe.changes', new ChangesTreeProvider(controller)),
   );
 }
 
