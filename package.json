@@ -21,7 +21,7 @@
         { "command": "loupe.copyForClaude", "when": "loupe.active" }
       ],
       "comments/commentThread/context": [
-        { "command": "loupe.createComment", "group": "inline" }
+        { "command": "loupe.createComment", "group": "inline", "when": "commentController == loupe" }
       ],
       "comments/comment/title": [
         { "command": "loupe.deleteComment", "group": "inline", "when": "commentController == loupe" }
