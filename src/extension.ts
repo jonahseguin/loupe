@@ -6,6 +6,7 @@ import { ChangesTreeProvider } from './ui/changesTree';
 class LoupeComment implements vscode.Comment {
   mode = vscode.CommentMode.Preview;
   author: vscode.CommentAuthorInformation = { name: 'You' };
+  parent?: vscode.CommentThread;
   constructor(public body: vscode.MarkdownString, public id: string) {}
 }
 
@@ -42,9 +43,23 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!range) return;
       const id = newId();
       const thread = reply.thread;
-      thread.comments = [...thread.comments, new LoupeComment(new vscode.MarkdownString(reply.text), id)];
+      const comment = new LoupeComment(new vscode.MarkdownString(reply.text), id);
+      comment.parent = thread;
+      thread.comments = [...thread.comments, comment];
       controller.registerThread(thread);
       controller.addComment(thread.uri, range.start.line + 1, range.end.line + 1, reply.text, id);
+    }),
+
+    vscode.commands.registerCommand('loupe.addCommentHere', () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!controller.active || !editor) {
+        return;
+      }
+      const sel = editor.selection;
+      const range = new vscode.Range(sel.start.line, 0, sel.end.line, 0);
+      const thread = commentCtrl.createCommentThread(editor.document.uri, range, []);
+      thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+      // The thread is registered (and persisted) when the user submits via loupe.createComment.
     }),
 
     vscode.commands.registerCommand('loupe.deleteComment', (comment: LoupeComment & { parent?: vscode.CommentThread }) => {
@@ -65,9 +80,13 @@ export function activate(context: vscode.ExtensionContext): void {
   void controller.restore().then((restored) => {
     if (!restored) return;
     for (const r of restored) {
-      const thread = commentCtrl.createCommentThread(r.uri, new vscode.Range(r.startLine - 1, 0, r.endLine - 1, 0), [
-        new LoupeComment(new vscode.MarkdownString(r.body), r.id),
-      ]);
+      const comment = new LoupeComment(new vscode.MarkdownString(r.body), r.id);
+      const thread = commentCtrl.createCommentThread(
+        r.uri,
+        new vscode.Range(r.startLine - 1, 0, r.endLine - 1, 0),
+        [comment],
+      );
+      comment.parent = thread;
       thread.collapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
       controller.registerThread(thread);
     }
