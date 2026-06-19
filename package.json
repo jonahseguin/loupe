@@ -6,11 +6,40 @@
   "publisher": "internetbackyard",
   "engines": { "vscode": "^1.85.0" },
   "main": "./dist/extension.js",
-  "activationEvents": ["*"],
+  "activationEvents": ["onStartupFinished"],
   "contributes": {
     "commands": [
-      { "command": "loupe.toggle", "title": "Loupe: Toggle Review Mode" }
-    ]
+      { "command": "loupe.toggle", "title": "Toggle Review Mode", "category": "Loupe" },
+      { "command": "loupe.copyForClaude", "title": "Copy Comments for Claude", "category": "Loupe", "icon": "$(clippy)" },
+      { "command": "loupe.createComment", "title": "Add Comment", "category": "Loupe" },
+      { "command": "loupe.deleteComment", "title": "Delete Comment", "category": "Loupe", "icon": "$(trash)" }
+    ],
+    "menus": {
+      "commandPalette": [
+        { "command": "loupe.createComment", "when": "false" },
+        { "command": "loupe.deleteComment", "when": "false" },
+        { "command": "loupe.copyForClaude", "when": "loupe.active" }
+      ],
+      "comments/commentThread/context": [
+        { "command": "loupe.createComment", "group": "inline" }
+      ],
+      "comments/comment/title": [
+        { "command": "loupe.deleteComment", "group": "inline", "when": "commentController == loupe" }
+      ],
+      "view/title": [
+        { "command": "loupe.copyForClaude", "when": "view == loupe.changes", "group": "navigation" }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "loupe", "title": "Loupe", "icon": "$(eye)" }
+      ]
+    },
+    "views": {
+      "loupe": [
+        { "id": "loupe.changes", "name": "Changed Files", "when": "loupe.active" }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./",
