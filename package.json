@@ -32,7 +32,7 @@
     },
     "viewsContainers": {
       "activitybar": [
-        { "id": "loupe", "title": "Loupe", "icon": "$(eye)" }
+        { "id": "loupe", "title": "Loupe", "icon": "resources/loupe.svg" }
       ]
     },
     "views": {

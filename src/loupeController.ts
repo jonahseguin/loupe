@@ -107,7 +107,9 @@ export class LoupeController implements vscode.Disposable {
     if (!this.session || !this.root) return;
     const rel = path.relative(this.root, uri.fsPath);
     this.session.addComment(rel, { id, body, startLine, endLine });
-    void this.session.save(this.ctx.workspaceState);
+    Promise.resolve(this.session.save(this.ctx.workspaceState)).catch((err: unknown) => {
+      console.error('Loupe: failed to persist comment:', err);
+    });
     this.updateStatus();
     this.emitter.fire();
   }
@@ -116,7 +118,9 @@ export class LoupeController implements vscode.Disposable {
     if (!this.session || !this.root) return;
     const rel = path.relative(this.root, uri.fsPath);
     this.session.removeComment(rel, id);
-    void this.session.save(this.ctx.workspaceState);
+    Promise.resolve(this.session.save(this.ctx.workspaceState)).catch((err: unknown) => {
+      console.error('Loupe: failed to persist comment:', err);
+    });
     this.updateStatus();
     this.emitter.fire();
   }
@@ -159,6 +163,8 @@ export class LoupeController implements vscode.Disposable {
   }
 
   dispose(): void {
+    for (const t of this.threads) t.dispose();
+    this.threads = [];
     this.overlay?.dispose();
     this.emitter.dispose();
   }

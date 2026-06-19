@@ -35,20 +35,13 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('loupe.copyForClaude', () => controller.copyForClaude()),
 
     vscode.commands.registerCommand('loupe.createComment', (reply: vscode.CommentReply) => {
+      const range = reply.thread.range;
+      if (!range) return;
       const id = newId();
       const thread = reply.thread;
       thread.comments = [...thread.comments, new LoupeComment(new vscode.MarkdownString(reply.text), id)];
       controller.registerThread(thread);
-      const range = thread.range;
-      if (range) {
-        controller.addComment(
-          thread.uri,
-          range.start.line + 1,
-          range.end.line + 1,
-          reply.text,
-          id,
-        );
-      }
+      controller.addComment(thread.uri, range.start.line + 1, range.end.line + 1, reply.text, id);
     }),
 
     vscode.commands.registerCommand('loupe.deleteComment', (comment: LoupeComment & { parent?: vscode.CommentThread }) => {
