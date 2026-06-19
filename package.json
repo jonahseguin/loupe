@@ -1,0 +1,31 @@
+{
+  "name": "loupe",
+  "displayName": "Loupe",
+  "description": "Review changes inline in your real files. Comment in the margin, hand notes to Claude.",
+  "version": "0.0.1",
+  "publisher": "internetbackyard",
+  "engines": { "vscode": "^1.85.0" },
+  "main": "./dist/extension.js",
+  "activationEvents": ["*"],
+  "contributes": {
+    "commands": [
+      { "command": "loupe.toggle", "title": "Loupe: Toggle Review Mode" }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "bundle": "node esbuild.js",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run bundle",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-cli": "^0.0.6",
+    "@vscode/test-electron": "^2.3.9",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0"
+  }
+}
