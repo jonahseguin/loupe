@@ -22,8 +22,12 @@ export async function diffNameStatus(cwd: string, baseRef: string): Promise<Chan
 export async function showFile(cwd: string, ref: string, repoRelPath: string): Promise<string> {
   try {
     return await runGit(cwd, ['show', `${ref}:${repoRelPath}`]);
-  } catch {
-    return ''; // file does not exist at ref (e.g. a newly added file)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // git show exits 128 with these messages when the path simply isn't in the ref
+    // (e.g. a newly added file); anything else is a real error worth surfacing.
+    if (/does not exist in|exists on disk, but not in/.test(msg)) return '';
+    throw err;
   }
 }
 

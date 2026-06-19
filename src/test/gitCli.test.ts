@@ -3,7 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { repoRoot, diffNameStatus, showFile, mergeBase } from '../git/gitCli';
+import { repoRoot, diffNameStatus, showFile, mergeBase, resolveDefaultBranch } from '../git/gitCli';
 
 function git(cwd: string, ...args: string[]): void {
   execFileSync('git', args, { cwd });
@@ -47,6 +47,23 @@ suite('gitCli', () => {
     git(dir, 'commit', '-q', '-m', 'init');
     assert.strictEqual(await showFile(dir, 'HEAD', 'a.txt'), 'base\n');
     assert.strictEqual(await showFile(dir, 'HEAD', 'missing.txt'), '');
+  });
+
+  test('resolveDefaultBranch returns the local default branch when no remote is set', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'loupe-git-'));
+    git(dir, 'init', '-q', '-b', 'main');
+    git(dir, 'config', 'user.email', 'test@test.com');
+    git(dir, 'config', 'user.name', 'Test');
+    fs.writeFileSync(path.join(dir, 'a.txt'), 'x\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-q', '-m', 'init');
+    assert.strictEqual(await resolveDefaultBranch(dir), 'main');
+  });
+
+  test('resolveDefaultBranch falls back to HEAD when no branch ref exists', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'loupe-git-'));
+    git(dir, 'init', '-q', '-b', 'main');
+    assert.strictEqual(await resolveDefaultBranch(dir), 'HEAD');
   });
 
   test('mergeBase finds the common ancestor', async () => {
