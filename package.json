@@ -3,7 +3,7 @@
   "displayName": "Loupe",
   "description": "Review changes inline in your real files. Comment in the margin, hand notes to Claude.",
   "version": "0.0.1",
-  "publisher": "internetbackyard",
+  "publisher": "jonahseguin",
   "engines": { "vscode": "^1.85.0" },
   "main": "./dist/extension.js",
   "activationEvents": ["onStartupFinished"],
@@ -56,8 +56,11 @@
     "bundle": "node esbuild.js",
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run bundle",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "vscode:prepublish": "npm run bundle",
+    "package": "vsce package"
   },
+  "repository": { "type": "git", "url": "https://github.com/jonahseguin/loupe.git" },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.0",

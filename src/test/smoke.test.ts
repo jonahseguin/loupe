@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 
 suite('extension', () => {
   test('activates and registers the toggle command', async () => {
-    const ext = vscode.extensions.getExtension('internetbackyard.loupe');
+    const ext = vscode.extensions.getExtension('jonahseguin.loupe');
     assert.ok(ext, 'extension should be present in the test host');
     await ext.activate();
     const commands = await vscode.commands.getCommands(true);

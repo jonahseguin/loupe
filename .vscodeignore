@@ -1,8 +1,13 @@
 src/**
 out/**
 **/*.map
+.vscode-test/**
 .vscode-test.mjs
+.vscode/**
+docs/**
 esbuild.js
 tsconfig.json
 node_modules/**
+.gitignore
 !dist/**
+!resources/**
