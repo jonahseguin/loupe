@@ -5,6 +5,7 @@ out/**
 .vscode-test.mjs
 .vscode/**
 docs/**
+scripts/**
 esbuild.js
 tsconfig.json
 node_modules/**

@@ -4,6 +4,7 @@
   "description": "Review changes inline in your real files. Comment in the margin, hand notes to Claude.",
   "version": "0.0.1",
   "publisher": "jonahseguin",
+  "icon": "resources/icon.png",
   "engines": { "vscode": "^1.85.0" },
   "main": "./dist/extension.js",
   "activationEvents": ["onStartupFinished"],
