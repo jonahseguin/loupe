@@ -3,8 +3,8 @@
   <h1>Loupe</h1>
   <p><strong>Review code inline in your real files — diff in the gutter, comments in the margin — then hand your notes to Claude.</strong></p>
   <p>
-    <a href="https://marketplace.visualstudio.com/items?itemName=jonahseguin.loupe"><img src="https://img.shields.io/visual-studio-marketplace/v/jonahseguin.loupe?label=VS%20Code%20Marketplace&color=4F46E5" alt="VS Code Marketplace" /></a>
-    <a href="https://open-vsx.org/extension/jonahseguin/loupe"><img src="https://img.shields.io/open-vsx/v/jonahseguin/loupe?label=Open%20VSX&color=4F46E5" alt="Open VSX" /></a>
+    <a href="https://marketplace.visualstudio.com/items?itemName=jonahseguin.loupe"><img src="https://img.shields.io/badge/VS%20Code%20Marketplace-Install-4F46E5?logo=visualstudiocode&logoColor=white" alt="VS Code Marketplace" /></a>
+    <a href="https://open-vsx.org/extension/jonahseguin/loupe"><img src="https://img.shields.io/badge/Open%20VSX-Install-4F46E5?logo=eclipseide&logoColor=white" alt="Open VSX" /></a>
   </p>
 </div>
 
