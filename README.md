@@ -2,6 +2,10 @@
   <img src="resources/icon.png" width="120" alt="Loupe" />
   <h1>Loupe</h1>
   <p><strong>Review code inline in your real files — diff in the gutter, comments in the margin — then hand your notes to Claude.</strong></p>
+  <p>
+    <a href="https://marketplace.visualstudio.com/items?itemName=jonahseguin.loupe"><img src="https://img.shields.io/visual-studio-marketplace/v/jonahseguin.loupe?label=VS%20Code%20Marketplace&color=4F46E5" alt="VS Code Marketplace" /></a>
+    <a href="https://open-vsx.org/extension/jonahseguin/loupe"><img src="https://img.shields.io/open-vsx/v/jonahseguin/loupe?label=Open%20VSX&color=4F46E5" alt="Open VSX" /></a>
+  </p>
 </div>
 
 A VS Code / Cursor extension for reviewing changes *in place*. Instead of bouncing to GitHub's web UI or a separate diff tab, Loupe overlays the diff onto the files you're already editing (with full language-server context), lets you leave inline comments anywhere, and exports those comments as clean markdown for Claude Code — or for your own notes.
@@ -32,14 +36,28 @@ Reviewing on github.com is slow and collapses the surrounding context. The offic
 
 All keybindings are rebindable in **Keyboard Shortcuts** (search "loupe").
 
-## Install from source
+## Install
+
+**From your editor** — open the Extensions view, search **Loupe**, and click Install:
+
+- **VS Code** → [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=jonahseguin.loupe)
+- **Cursor / VSCodium** → [Open VSX](https://open-vsx.org/extension/jonahseguin/loupe)
+
+**From the command line:**
+
+```bash
+code --install-extension jonahseguin.loupe     # VS Code
+cursor --install-extension jonahseguin.loupe   # Cursor (resolves from Open VSX)
+```
+
+### From source
 
 ```bash
 git clone git@github.com:jonahseguin/loupe.git
 cd loupe
 npm install
-npm run package                       # builds loupe-<version>.vsix
-cursor --install-extension loupe-*.vsix   # or: code --install-extension loupe-*.vsix
+npm run package                            # builds loupe-<version>.vsix
+cursor --install-extension loupe-*.vsix    # or: code --install-extension loupe-*.vsix
 ```
 
 Then reload the editor. (During development you can also press `F5` to launch an Extension Development Host.)
